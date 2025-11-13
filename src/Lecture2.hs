@@ -39,6 +39,7 @@ module Lecture2
     , eval
     , constantFolding
     ) where
+import Lecture3 (Treasure)
 
 -- VVV If you need to import libraries, do it after this line ... VVV
 
@@ -50,9 +51,20 @@ zero, you can stop calculating product and return 0 immediately.
 
 >>> lazyProduct [4, 3, 7]
 84
+>>> lazyProduct [4, 0, 7]
+0
 -}
 lazyProduct :: [Int] -> Int
-lazyProduct = error "TODO"
+lazyProduct (0 : _) = 0
+lazyProduct [] = 1 --this does mean we do one more multiply lol, I don't want to do the go pattern
+lazyProduct (x : xs) = x * lazyProduct xs
+-- because haskell is lazy, we don't always want tail recursive without strict operators
+
+--worse method below maybe 
+-- lazyProduct [] = 1
+-- lazyProduct (x : xs) 
+--   | x == 0 = 0
+--   | otherwise = x * lazyProduct xs
 
 {- | Implement a function that duplicates every element in the list.
 
@@ -62,7 +74,8 @@ lazyProduct = error "TODO"
 "ccaabb"
 -}
 duplicate :: [a] -> [a]
-duplicate = error "TODO"
+duplicate [] = []
+duplicate (x : xs) = x : x : duplicate xs
 
 {- | Implement function that takes index and a list and removes the
 element at the given position. Additionally, this function should also
@@ -74,7 +87,17 @@ return the removed element.
 >>> removeAt 10 [1 .. 5]
 (Nothing,[1,2,3,4,5])
 -}
-removeAt = error "TODO"
+removeAt :: Int -> [a] -> (Maybe a, [a])
+removeAt _ [] = (Nothing, [])
+removeAt i (x : xs)
+  | i < 0 = (Nothing, (x : xs)) --this might not be needed 
+  | i == 0 = (Just x, xs)
+  | otherwise = go (removeAt (i-1) xs)
+    where
+      --go :: (Maybe a, [a]) -> (Maybe a, [a]) ???
+      go (m, l) = (m, x : l)
+
+-- there has to be a nice way to do this with break
 
 {- | Write a function that takes a list of lists and returns only
 lists of even lengths.
@@ -85,7 +108,10 @@ lists of even lengths.
 ♫ NOTE: Use eta-reduction and function composition (the dot (.) operator)
   in this function.
 -}
-evenLists = error "TODO"
+evenLists :: [[a]] -> [[a]]
+evenLists = filter (even . length)
+
+
 
 {- | The @dropSpaces@ function takes a string containing a single word
 or number surrounded by spaces and removes all leading and trailing
@@ -101,7 +127,18 @@ spaces.
 
 🕯 HINT: look into Data.Char and Prelude modules for functions you may use.
 -}
-dropSpaces = error "TODO"
+dropSpaces :: String -> String
+dropSpaces = takeWhile (/= ' ') . dropWhile (== ' ')
+
+--the version below is for removing only beginning and ending spaces 
+-- dropSpaces :: String -> String 
+-- dropSpaces = reverse . go . (reverse . go) 
+--   where 
+--     go :: String -> String 
+--     go = dropWhile (== ' ')
+-- I don't think we can be much more efficent that this because list treversal is linear ): 
+-- we could maybe remove one of the reverses at a loss of elegance?
+
 
 {- |
 
@@ -164,7 +201,68 @@ data Knight = Knight
     , knightEndurance :: Int
     }
 
-dragonFight = error "TODO"
+-- I could also use a maybe, but that would be less strict on the green dragon?
+data Chest a = Chest { gold :: Int, treasure :: Maybe a}
+
+data DragonType = Red | Black | Green
+data Dragon a = Dragon
+    {  dragonHealth :: Int
+    ,  dragonFire :: Int
+    ,  dragonType :: DragonType
+    ,  dragonChest :: Chest a
+    }
+
+mkRedDragon :: Int -> Int -> Chest a -> Dragon a
+mkRedDragon health fire chest
+  | gold chest <= 0 = error "Chests must have non-zero amount of gold"
+  | otherwise = Dragon
+    {
+      dragonHealth = health,
+      dragonFire = fire,
+      dragonType = Red,
+      dragonChest = chest
+    }
+
+mkBlackDragon :: Int -> Int -> Chest a -> Dragon a
+mkBlackDragon health fire chest
+  | gold chest <= 0 = error "Chests must have non-zero amount of gold"
+  | otherwise = Dragon
+    {
+      dragonHealth = health,
+      dragonFire = fire,
+      dragonType = Black,
+      dragonChest = chest
+    }
+
+-- the green dragon throws out any treasure given to it i.e 'acid burns it lol'
+mkGreenDragon :: Int -> Int -> Chest a -> Dragon a
+mkGreenDragon health fire chest
+  | gold chest <= 0 = error "Chests must have non-zero amount of gold"
+  | otherwise = Dragon
+    {
+      dragonHealth = health,
+      dragonFire = fire,
+      dragonType = Green,
+      dragonChest = chest
+    }
+--I could wrap the gold chest check into a generic make dragon thing maybe?
+-- ugly 
+
+data FightOutcome = DragonWins | KnightWins | KnightRuns
+  deriving(Show)
+
+dragonFight :: Knight -> Dragon a -> FightOutcome
+dragonFight k d
+  | dragonHealth d <= 0 = KnightWins
+  | knightHealth k <= 0 = DragonWins
+  | knightEndurance k <= 0 = KnightRuns
+  | knightEndurance k >= 10 = dragonFight
+    k {knightHealth = knightHealth k - dragonFire d, knightEndurance  = knightEndurance k - 10}
+    d {dragonHealth = dragonHealth d - 10 * knightAttack k}
+  | (knightEndurance k) * (knightAttack k) > (dragonHealth d) = KnightWins
+  | otherwise = KnightRuns
+
+--with this order, we can treat this as rounds of ten hits than dragon fire
 
 ----------------------------------------------------------------------------
 -- Extra Challenges
@@ -185,7 +283,11 @@ False
 True
 -}
 isIncreasing :: [Int] -> Bool
-isIncreasing = error "TODO"
+isIncreasing [] = True  -- ???
+isIncreasing [_] = True
+isIncreasing (x : (x2 : xs))
+  | x2 > x = isIncreasing (x2 : xs)
+  | otherwise = False
 
 {- | Implement a function that takes two lists, sorted in the
 increasing order, and merges them into new list, also sorted in the
@@ -198,7 +300,14 @@ verify that.
 [1,2,3,4,7]
 -}
 merge :: [Int] -> [Int] -> [Int]
-merge = error "TODO"
+merge [] [] = []
+merge xs [] = xs
+merge [] ys = ys
+merge (x : xs) (y : ys)
+  | x < y = x : merge xs (y : ys)
+  | otherwise = y : merge (x : xs) ys
+
+--lazy so tail recursive is a okay probably lol
 
 {- | Implement the "Merge Sort" algorithm in Haskell. The @mergeSort@
 function takes a list of numbers and returns a new list containing the
@@ -215,7 +324,19 @@ The algorithm of merge sort is the following:
 [1,2,3]
 -}
 mergeSort :: [Int] -> [Int]
-mergeSort = error "TODO"
+mergeSort [] = []
+mergeSort [x] = [x]
+mergeSort [x1, x2]
+  | x1 < x2 = [x1, x2]
+  | otherwise = [x2, x1]
+mergeSort l =
+  let
+    len = length l
+    (l1, l2) = splitAt (len `div` 2) l
+  in
+    merge (mergeSort l1) (mergeSort l2)
+
+--this sounds really bad because we need the length 
 
 
 {- | Haskell is famous for being a superb language for implementing
@@ -268,7 +389,24 @@ data EvalError
 It returns either a successful evaluation result or an error.
 -}
 eval :: Variables -> Expr -> Either EvalError Int
-eval = error "TODO"
+eval _ (Lit i) = Right i 
+eval vars (Var xs) = 
+  let 
+    x = lookup xs vars 
+  in 
+    go x 
+  where 
+    go :: Maybe Int -> Either EvalError Int 
+    go (Just i) = Right i
+    go Nothing = Left $ VariableNotFound xs --I can probably make this into a case thing aswell
+eval vars (Add e1 e2) = 
+  let 
+    e1r = eval vars e1 
+    e2r = eval vars e2 
+  in case (e1r, e2r) of 
+    (Left err, _) -> Left err
+    (_, Left err) -> Left err
+    (Right x, Right y) -> Right $ x + y
 
 {- | Compilers also perform optimizations! One of the most common
 optimizations is "Constant Folding". It performs arithmetic operations
@@ -291,5 +429,26 @@ x + 45 + y
 Write a function that takes and expression and performs "Constant
 Folding" optimization on the given expression.
 -}
+-- we want the sum of all literals 
+getLitSum :: (Int, Expr) -> (Int, Expr)  
+getLitSum (sum, Lit x) = (0, Lit $ x + sum) 
+getLitSum (sum, Var v) = (sum, Var v)
+getLitSum (sum, Add (Lit x) (Lit y)) = (0, Lit $ x + y + sum)
+getLitSum (sum, Add x1 x2) = 
+  let 
+    x1s = getLitSum (sum, x1) 
+    x2s = getLitSum (0, x2) 
+  in case (x1s, x2s) of 
+    ((_, Lit x), (_, Lit y)) -> (0, Lit $ x + y) 
+    ((s1, Lit x), (s2, e)) -> (s1 + s2 + x, e) 
+    ((s1, e), (s2, Lit x)) -> (s1 + s2 + x, e) 
+    ((s1, e1), (s2, e2)) -> (s1 + s2, Add e1 e2) 
+
 constantFolding :: Expr -> Expr
-constantFolding = error "TODO"
+constantFolding e =
+  let 
+    (sum, exp) = getLitSum (0, e)
+  in case (sum, exp) of 
+    (0, exp) -> exp
+    (sum, exp) -> Add (Lit sum) exp 
+
